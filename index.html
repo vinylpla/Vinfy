@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050505">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="vinyfy">
+<title>vinyfy</title>
+<style>
+:root{--bg:#050505;--gold:#f5c542;--dim:#9a7f2c;--faint:#2b2310}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--gold);
+  font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;overflow-x:hidden}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+#bg{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.app{position:relative;z-index:1;max-width:520px;margin:0 auto;min-height:100%;
+  padding:10px 18px 22px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:10px;border-bottom:2px solid var(--faint)}
+.brand{display:flex;align-items:center;gap:10px;font-size:24px;font-weight:700}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--faint)}
+.dot.on{background:var(--gold)}
+button{font:inherit;color:var(--gold);background:transparent;border:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.ghost{font-size:15px;color:var(--dim);text-decoration:underline;padding:6px 0}
+.stage{position:relative;width:100%;aspect-ratio:1}
+#disc{width:100%;height:100%;display:block}
+.arm{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.meta{min-height:58px}
+.title{font-size:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.artist{margin-top:6px;font-size:16px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--dim)}
+.prog span{min-width:44px}
+.prog span:last-child{text-align:right}
+.bar{flex:1;height:30px;position:relative;cursor:pointer;touch-action:none}
+.bar::before{content:"";position:absolute;left:0;right:0;top:11px;height:8px;background:var(--faint)}
+#fill{position:absolute;left:0;top:11px;height:8px;width:0;background:var(--gold)}
+.ctl{display:flex;justify-content:space-between;gap:12px}
+.grp{display:flex;border:2px solid var(--gold)}
+.grp button{width:58px;height:54px}
+.grp button+button{border-left:2px solid var(--gold)}
+.grp svg{width:26px;height:26px}
+.grp .fill{background:var(--gold);color:var(--bg)}
+.grp .on{background:var(--gold);color:var(--bg)}
+#rep{position:relative}
+#rep[data-mode="track"]::after{content:"1";position:absolute;right:9px;bottom:6px;font-size:11px;font-weight:700}
+.big{width:100%;height:58px;border:2px solid var(--gold);font-size:18px;font-weight:700;background:var(--gold);color:var(--bg)}
+.hint{margin:0 0 14px;font-size:15px;line-height:1.5;color:var(--dim)}
+.msg{min-height:20px;font-size:14px;line-height:1.5;color:var(--dim)}
+.dev{font-size:13px;color:var(--faint);color:#6b5720}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div class="app">
+  <header>
+    <div class="brand"><i class="dot" id="dot"></i>vinyfy</div>
+    <button class="ghost" id="logout" hidden>выйти</button>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="disc"></canvas>
+    <svg class="arm" viewBox="0 0 100 100" aria-hidden="true">
+      <g id="arm" style="transform-origin:90% 10%;transform:rotate(-34deg)">
+        <line x1="90" y1="10" x2="94" y2="1.5" stroke="#f5c542" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="94.4" cy="0.8" r="2.6" fill="#f5c542"/>
+        <path d="M90 10 L66 62 L60 72" fill="none" stroke="#f5c542" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+        <rect x="-2.6" y="-4" width="5.2" height="8" fill="#f5c542" transform="translate(59.2 72.6) rotate(31)"/>
+      </g>
+      <circle cx="90" cy="10" r="5.5" fill="#050505" stroke="#f5c542" stroke-width="1.6"/>
+      <circle cx="90" cy="10" r="1.6" fill="#f5c542"/>
+    </svg>
+  </div>
+
+  <section id="login" hidden>
+    <p class="hint">Нужен Spotify Premium. Музыка играет в приложении Spotify, а здесь — пластинка и пульт управления. Войти нужно один раз.</p>
+    <button class="big" id="loginBtn">войти через Spotify</button>
+  </section>
+
+  <section id="player" hidden>
+    <div class="meta">
+      <div class="title" id="title">ничего не играет</div>
+      <div class="artist" id="artist">открой Spotify и запусти любой трек</div>
+    </div>
+    <div class="prog" style="margin-top:12px">
+      <span id="tcur">0:00</span>
+      <div class="bar" id="bar"><i id="fill"></i></div>
+      <span id="tleft">-:--</span>
+    </div>
+    <div class="ctl" style="margin-top:12px">
+      <div class="grp">
+        <button id="prev" aria-label="предыдущий"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+        <button id="play" class="fill" aria-label="играть"><svg id="playIco" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg></button>
+        <button id="next" aria-label="следующий"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+      </div>
+      <div class="grp">
+        <button id="shuf" aria-label="вперемешку"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M3 7h3c5 0 5 10 10 10h3M3 17h3c1.6 0 2.7-.7 3.6-1.7M14.4 8.7C15.3 7.7 16.4 7 18 7h1M17 4l3 3-3 3M17 14l3 3-3 3"/></svg></button>
+        <button id="rep" aria-label="повтор" data-mode="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M4 11V9a3 3 0 013-3h12M16 3l3 3-3 3M20 13v2a3 3 0 01-3 3H5M8 21l-3-3 3-3"/></svg></button>
+      </div>
+    </div>
+    <div class="dev" id="dev" style="margin-top:14px"></div>
+  </section>
+
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+/* ====== НАСТРОЙКА ====== */
+const CLIENT_ID = 'ВСТАВЬТЕ_CLIENT_ID';
+/* ======================= */
+
+const REDIRECT = location.origin + location.pathname;
+const SCOPES = 'user-read-playback-state user-modify-playback-state';
+const $ = id => document.getElementById(id);
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+  del: k => { try { localStorage.removeItem(k); } catch (e) {} }
+};
+
+const S = { active:false, playing:false, id:'', title:'', artist:'', cover:'', dur:1, prog:0, progT:0,
+  shuffle:false, repeat:'off', vol:70, device:'', angle:0, spin:0, bpm:110, seed:0, E:0 };
+let tok = { access:'', refresh:'', exp:0 };
+let authed = false, pollBlock = 0, coverImg = null, discText = 'vinyfy', off = null;
+let dpr = 1;
+
+/* ---------- Авторизация (PKCE) ---------- */
+const rand = (n = 64) => {
+  const a = new Uint8Array(n); crypto.getRandomValues(a);
+  const cs = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  return Array.from(a, x => cs[x % cs.length]).join('');
+};
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+
+async function login() {
+  if (!CLIENT_ID || CLIENT_ID.indexOf('ВСТАВЬТЕ') === 0) { msg('Сначала впиши Client ID в начале файла index.html.'); return; }
+  const v = rand(64); store.set('v', v);
+  const st = rand(16); store.set('st', st);
+  const c = b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v)));
+  location.href = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
+    client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT, scope: SCOPES,
+    code_challenge_method: 'S256', code_challenge: c, state: st });
+}
+async function tokenReq(params) {
+  const r = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: CLIENT_ID, ...params }) });
+  if (!r.ok) throw new Error(r.status >= 400 && r.status < 500 ? 'auth' : 'net');
+  const d = await r.json();
+  tok.access = d.access_token;
+  if (d.refresh_token) tok.refresh = d.refresh_token;
+  tok.exp = Date.now() + d.expires_in * 1000 - 30000;
+  store.set('tok', JSON.stringify(tok));
+}
+async function getToken(force) {
+  if (!force && tok.access && Date.now() < tok.exp) return tok.access;
+  if (!tok.refresh) throw new Error('auth');
+  await tokenReq({ grant_type: 'refresh_token', refresh_token: tok.refresh });
+  return tok.access;
+}
+async function api(method, path) {
+  for (let i = 0; i < 2; i++) {
+    const t = await getToken(i === 1);
+    const r = await fetch('https://api.spotify.com/v1' + path, { method, headers: { Authorization: 'Bearer ' + t } });
+    if (r.status !== 401) return r;
+  }
+  throw new Error('auth');
+}
+function logout(text) {
+  store.del('tok'); tok = { access:'', refresh:'', exp:0 }; authed = false;
+  setIdle(); showSections(); msg(text || '');
+}
+
+/* ---------- Состояние плеера ---------- */
+const fmt = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const curProg = () => S.active ? Math.min(S.dur, S.prog + (S.playing ? performance.now() - S.progT : 0)) : 0;
+function msg(t) { $('msg').textContent = t || ''; }
+function hashSeed(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+function setIdle() {
+  const was = S.id;
+  S.active = false; S.playing = false; S.id = ''; S.title = ''; S.cover = ''; coverImg = null;
+  if (was) buildDisc('vinyfy');
+  render();
+}
+function apply(d) {
+  const it = d.item;
+  if (!it) { setIdle(); return; }
+  const id = it.id || it.uri || it.name;
+  const changed = id !== S.id;
+  S.active = true; S.id = id; S.title = it.name;
+  S.artist = it.artists ? it.artists.map(a => a.name).join(', ') : (it.show ? it.show.name : '');
+  S.dur = it.duration_ms || 1;
+  S.prog = d.progress_ms || 0; S.progT = performance.now(); S.playing = !!d.is_playing;
+  S.shuffle = !!d.shuffle_state; S.repeat = d.repeat_state || 'off';
+  S.vol = d.device && d.device.volume_percent != null ? d.device.volume_percent : 70;
+  S.device = d.device ? d.device.name : '';
+  if (changed) {
+    const h = hashSeed(id);
+    S.bpm = 84 + (h % 57); S.seed = (h % 1000) / 1000 * 6.283;
+    S.cover = (it.album && it.album.images && it.album.images[0] || it.images && it.images[0] || {}).url || '';
+    loadCover(S.cover); buildDisc(S.title);
+    document.title = S.title + ' — vinyfy';
+  }
+  render();
+}
+function loadCover(url) {
+  coverImg = null; if (!url) return;
+  const im = new Image();
+  im.onload = () => { if (S.cover === url) coverImg = im; };
+  im.src = url;
+}
+function render() {
+  $('title').textContent = S.active ? S.title : 'ничего не играет';
+  $('artist').textContent = S.active ? S.artist : 'открой Spotify и запусти любой трек';
+  $('dev').textContent = S.active && S.device ? 'играет на: ' + S.device : '';
+  $('playIco').innerHTML = S.playing ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="M7 4v16l13-8z"/>';
+  $('shuf').classList.toggle('on', S.shuffle);
+  $('rep').classList.toggle('on', S.repeat !== 'off');
+  $('rep').dataset.mode = S.repeat === 'track' ? 'track' : 'off';
+  $('dot').classList.toggle('on', S.active && S.playing);
+}
+function showSections() {
+  $('login').hidden = authed; $('player').hidden = !authed; $('logout').hidden = !authed;
+}
+
+async function poll() {
+  if (!authed || Date.now() < pollBlock || document.hidden) return;
+  try {
+    const r = await api('GET', '/me/player?additional_types=track,episode');
+    if (r.status === 204) { setIdle(); return; }
+    if (r.status === 429) { pollBlock = Date.now() + (+r.headers.get('Retry-After') || 5) * 1000; return; }
+    if (r.status === 403) { msg('Spotify не пускает это приложение: добавь свой аккаунт в Dashboard → Settings → User Management. Также нужен Premium.'); return; }
+    if (!r.ok) return;
+    apply(await r.json()); msg('');
+  } catch (e) { if (e.message === 'auth') logout('Сессия истекла, войди снова.'); }
+}
+async function cmd(method, path) {
+  try {
+    const r = await api(method, path);
+    if (r.status === 404) msg('Нет активного устройства: открой приложение Spotify и запусти любой трек.');
+    else if (r.status === 403) msg('Команда не прошла: для управления нужен Spotify Premium.');
+    else msg('');
+  } catch (e) { if (e.message === 'auth') logout('Сессия истекла, войди снова.'); }
+  setTimeout(poll, 600);
+}
+
+/* ---------- Кнопки ---------- */
+$('loginBtn').onclick = login;
+$('logout').onclick = () => logout('');
+$('play').onclick = () => {
+  if (!S.active) { poll(); msg('Открой Spotify и запусти любой трек — пластинка подхватит.'); return; }
+  S.prog = curProg(); S.progT = performance.now(); S.playing = !S.playing; render();
+  cmd('PUT', S.playing ? '/me/player/play' : '/me/player/pause');
+};
+$('next').onclick = () => cmd('POST', '/me/player/next');
+$('prev').onclick = () => cmd('POST', '/me/player/previous');
+$('shuf').onclick = () => { S.shuffle = !S.shuffle; render(); cmd('PUT', '/me/player/shuffle?state=' + S.shuffle); };
+$('rep').onclick = () => {
+  S.repeat = S.repeat === 'off' ? 'context' : S.repeat === 'context' ? 'track' : 'off'; render();
+  cmd('PUT', '/me/player/repeat?state=' + S.repeat);
+};
+$('bar').addEventListener('pointerup', e => {
+  if (!S.active) return;
+  const r = $('bar').getBoundingClientRect();
+  const pos = Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * S.dur);
+  S.prog = pos; S.progT = performance.now();
+  cmd('PUT', '/me/player/seek?position_ms=' + pos);
+});
+
+/* ---------- Пластинка из букв ---------- */
+const disc = $('disc'), dctx = disc.getContext('2d');
+const bg = $('bg'), bctx = bg.getContext('2d');
+
+function sizeAll() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const cs = $('stage').clientWidth || 320;
+  disc.width = disc.height = Math.round(cs * dpr);
+  bg.width = Math.round(innerWidth * dpr); bg.height = Math.round(innerHeight * dpr);
+  buildDisc(discText);
+}
+function buildDisc(text) {
+  discText = text || 'vinyfy';
+  const size = disc.width; if (!size) return;
+  off = document.createElement('canvas'); off.width = off.height = size;
+  const c = off.getContext('2d');
+  const R = size * 0.46, Rl = R * 0.38;
+  const fs = Math.max(7 * dpr, size / 42);
+  c.font = fs + 'px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  c.textBaseline = 'middle';
+  const cw = c.measureText('M').width, lh = fs * 1.32;
+  const word = discText.toLowerCase().replace(/\s+/g, ' ').trim() || 'vinyfy';
+  const pat = (word + ' ').repeat(Math.ceil(220 / (word.length + 1)) + 3);
+  const cx = size / 2, cy = size / 2;
+  let row = 0;
+  for (let y = -R + lh / 2; y < R; y += lh, row++) {
+    const hw = Math.sqrt(Math.max(0, R * R - y * y));
+    const n = Math.floor(hw * 2 / cw), x0 = cx - n * cw / 2, o = (row * 5) % pat.length;
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * cw, r = Math.hypot(x + cw / 2 - cx, y);
+      if (r > R || r < Rl * 1.02) continue;
+      const ch = pat[(o + i) % pat.length]; if (ch === ' ') continue;
+      const g = 0.5 + 0.5 * Math.sin(r / (2.4 * dpr));
+      const edge = Math.min(1, (R - r) / (R * 0.07));
+      const a = (0.2 + 0.65 * g) * (0.4 + 0.6 * edge);
+      c.fillStyle = 'rgba(245,197,66,' + a.toFixed(3) + ')';
+      c.fillText(ch, x, cy + y);
+    }
+  }
+}
+function drawDisc() {
+  const w = disc.width; if (!w || !off) return;
+  dctx.clearRect(0, 0, w, w);
+  dctx.save(); dctx.translate(w / 2, w / 2); dctx.rotate(S.angle);
+  dctx.drawImage(off, -w / 2, -w / 2);
+  const Rl = w * 0.46 * 0.38;
+  dctx.beginPath(); dctx.arc(0, 0, Rl, 0, 6.2832); dctx.fillStyle = '#0a0803'; dctx.fill();
+  if (coverImg && coverImg.naturalWidth) {
+    dctx.save(); dctx.beginPath(); dctx.arc(0, 0, Rl, 0, 6.2832); dctx.clip();
+    dctx.drawImage(coverImg, -Rl, -Rl, Rl * 2, Rl * 2); dctx.restore();
+  } else {
+    dctx.fillStyle = 'rgba(245,197,66,.55)'; dctx.font = Rl * 0.9 + 'px ui-monospace, Menlo, monospace';
+    dctx.textAlign = 'center'; dctx.textBaseline = 'middle'; dctx.fillText('♪', 0, 0);
+  }
+  dctx.beginPath(); dctx.arc(0, 0, Rl, 0, 6.2832); dctx.lineWidth = 2 * dpr; dctx.strokeStyle = 'rgba(245,197,66,.9)'; dctx.stroke();
+  dctx.beginPath(); dctx.arc(0, 0, w * 0.011, 0, 6.2832); dctx.fillStyle = '#050505'; dctx.fill();
+  dctx.lineWidth = 1.5 * dpr; dctx.stroke();
+  dctx.restore();
+}
+
+/* ---------- Игла ---------- */
+const arm = $('arm');
+let armState = 'rest', armTimer = 0, armLast = 0;
+function updateArm(now) {
+  const want = S.active && S.playing;
+  const phi = () => -17 + 17 * Math.min(1, curProg() / Math.max(1, S.dur));
+  if (want && armState === 'rest') {
+    armState = 'drop'; armTimer = now + 1700;
+    arm.style.transition = 'transform 1.6s cubic-bezier(.45,0,.2,1)';
+    arm.style.transform = 'rotate(' + phi() + 'deg)';
+  } else if (!want && armState !== 'rest') {
+    armState = 'rest';
+    arm.style.transition = 'transform 1.3s cubic-bezier(.45,0,.2,1)';
+    arm.style.transform = 'rotate(-34deg)';
+  } else if (armState === 'drop' && now > armTimer) {
+    armState = 'play'; armLast = now; arm.style.transition = 'transform 1s linear';
+  } else if (armState === 'play' && now - armLast > 1000) {
+    armLast = now; arm.style.transform = 'rotate(' + phi() + 'deg)';
+  }
+}
+
+/* ---------- Фон: волны под (условный) ритм и громкость ---------- */
+const ripples = []; let lastBeat = -1;
+function beat(now) {
+  const want = S.active && S.playing;
+  const vol = 0.35 + 0.65 * (S.vol / 100);
+  let target = 0;
+  if (want) {
+    const t = curProg() / 1000, bp = t * S.bpm / 60, fr = bp % 1, bi = Math.floor(bp);
+    const accent = bi % 4 === 0 ? 1 : 0.7;
+    target = (0.25 + 0.75 * Math.exp(-fr * 4.5) * accent) * (0.6 + 0.4 * (0.5 + 0.5 * Math.sin(t * 1.7 + S.seed)));
+    if (bi !== lastBeat) {
+      lastBeat = bi;
+      if (!RM) { ripples.push({ t0: now, a: accent * vol }); if (ripples.length > 6) ripples.shift(); }
+    }
+  }
+  S.E += (target - S.E) * (target > S.E ? 0.5 : 0.1);
+  S.vf = vol;
+}
+function drawBg(now) {
+  const w = bg.width, h = bg.height;
+  bctx.clearRect(0, 0, w, h);
+  const rc = $('stage').getBoundingClientRect();
+  const cx = (rc.left + rc.width / 2) * dpr, cy = (rc.top + rc.height / 2) * dpr, R = rc.width * 0.46 * dpr;
+  const maxR = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
+  const E = S.E, vf = S.vf || 0.7;
+  bctx.strokeStyle = 'rgb(245,197,66)';
+  bctx.lineWidth = 1.2 * dpr;
+  bctx.setLineDash([2 * dpr, 9 * dpr]);
+  for (let i = 0; i < 12; i++) {
+    const r0 = R * 1.12 + i * R * 0.28; if (r0 > maxR) break;
+    const amp = R * 0.03 * (0.25 + E * vf * 1.6) * (1 + i * 0.15);
+    const k = 5 + (i % 3), dir = i % 2 ? 1 : -1;
+    bctx.globalAlpha = Math.max(0.02, (0.11 - i * 0.008) * (0.55 + E));
+    bctx.beginPath();
+    for (let a = 0; a <= 6.2832 + 0.05; a += 0.05) {
+      const r = r0 + amp * Math.sin(a * k + now * 0.0006 * dir + i);
+      const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+      a === 0 ? bctx.moveTo(x, y) : bctx.lineTo(x, y);
+    }
+    bctx.stroke();
+  }
+  bctx.setLineDash([]);
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const p = ripples[i], age = (now - p.t0) / 1900;
+    if (age >= 1) { ripples.splice(i, 1); continue; }
+    bctx.globalAlpha = (1 - age) * 0.16 * p.a;
+    bctx.beginPath(); bctx.arc(cx, cy, R * 1.05 + age * R * 1.7, 0, 6.2832); bctx.stroke();
+  }
+  bctx.globalAlpha = 1;
+}
+
+/* ---------- Главный цикл ---------- */
+let last = performance.now(), lastCur = '', lastLeft = '';
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const want = S.active && S.playing;
+  S.spin += ((want ? 1 : 0) - S.spin) * Math.min(1, dt * (want ? 1.2 : 1.8));
+  S.angle += S.spin * (RM ? 0.15 : 0.5) * dt;
+  updateArm(now); beat(now); drawBg(now); drawDisc();
+  const c = curProg();
+  const a = fmt(c), l = S.active ? '-' + fmt(S.dur - c) : '-:--';
+  if (a !== lastCur) { lastCur = a; $('tcur').textContent = a; }
+  if (l !== lastLeft) { lastLeft = l; $('tleft').textContent = l; }
+  $('fill').style.width = (S.active ? c / S.dur * 100 : 0) + '%';
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Запуск ---------- */
+(async function init() {
+  try { const t = JSON.parse(store.get('tok') || 'null'); if (t) tok = t; } catch (e) {}
+  const p = new URLSearchParams(location.search);
+  if (p.get('error')) {
+    msg('Вход отменён или отклонён (' + p.get('error') + ').');
+    history.replaceState(null, '', REDIRECT);
+  } else if (p.get('code')) {
+    try {
+      if (p.get('state') !== store.get('st')) throw new Error('state');
+      await tokenReq({ grant_type: 'authorization_code', code: p.get('code'), redirect_uri: REDIRECT, code_verifier: store.get('v') });
+    } catch (e) { msg('Не удалось войти. Проверь Client ID и Redirect URI и попробуй ещё раз.'); }
+    history.replaceState(null, '', REDIRECT);
+  }
+  authed = !!tok.refresh;
+  showSections(); render(); sizeAll();
+  requestAnimationFrame(frame);
+  if (authed) poll();
+  setInterval(poll, 4000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(sizeAll, 150); });
+})();
+</script>
+</body>
+</html>
